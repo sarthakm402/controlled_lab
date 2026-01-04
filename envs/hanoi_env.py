@@ -1,4 +1,4 @@
-from base_env import BaseEnv
+from envs.base_env import BaseEnv
 from copy import deepcopy
 
 class HanoiEnv(BaseEnv):
