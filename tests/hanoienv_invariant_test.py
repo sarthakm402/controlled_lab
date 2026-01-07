@@ -2,7 +2,7 @@ from envs.hanoi_env import HanoiEnv
 from copy import deepcopy
 
 def run_full_hanoi_suite(classe, n_disks, debug=False):
-    env = classe(n_disks)
+    env = classe(n_disks) 
     
     # TEST 1: Reset must initialize all disks on peg A in descending order,
     # with pegs B and C empty (canonical Hanoi start state).
