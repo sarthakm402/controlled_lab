@@ -10,7 +10,7 @@ def run_full_hanoi_suite(classe, n_disks, debug=False):
     assert state["A"] == list(range(n_disks, 0, -1))
     assert state["B"] == []
     assert state["C"] == []
-    
+     
     # TEST 2: Illegal move detection.
     # Moving a larger disk onto a smaller one must:
     # - return ok=False
