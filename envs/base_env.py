@@ -3,7 +3,7 @@ class BaseEnv(ABC):
     @abstractmethod
     def __init__(self):
         """initialise env specific state:
-        -must set up initial state
+        -must set up initial state 
         -must have constraints like done flag,step counter etc."""
     @abstractmethod
     def reset(self):
