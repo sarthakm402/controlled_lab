@@ -17,3 +17,5 @@ for steps in range(1000):
             f"step {steps} | loss {loss.item():.4f} | "
             f"W {model.weight.item():.4f}"
         )
+"""bcewithlogitloss does sigmoid and define the loss fucntion on its own so basically from model like tradiitonal stuff
+we get the logits this is converted to probs and then fed to loss with bcewithlogitsloss"""
