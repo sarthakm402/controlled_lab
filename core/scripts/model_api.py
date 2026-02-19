@@ -6,6 +6,7 @@ import numpy as np
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score,precision_score,recall_score,roc_auc_score
+from sklearn.metrics import average_precision_score
 from sklearn.preprocessing import StandardScaler
 df=pd.read_csv("my csv path")
 x=df.drop(columns=["id","label"])
@@ -21,7 +22,7 @@ class mydataset(Dataset):
     def __init__(self,x,y):
         self.x=torch.tensor(x,dtype=torch.float32)
         self.y=torch.tensor(y,dtype=torch.float32)
-    def __len__(self,x):
+    def __len__(self):
         return len(self.x)
     def __getitem__(self, index):
         return self.x[index],self.y[index]
@@ -43,8 +44,15 @@ class MLP(nn.Module):
         )
     def forward(self,x):
         return self.net(x).squeeze(1)
-model=MLP(len(xtrain_scaled.shape[1])).to(device)
-criterion=nn.BCEWithLogitsLoss()
+model=MLP(xtrain_scaled.shape[1]).to(device)
+num_pos = (ytrain == 1).sum()
+num_neg = (ytrain == 0).sum()
+pos_weight_value = num_neg / (num_pos+1e-8)
+pos_weight = torch.tensor([pos_weight_value], dtype=torch.float32).to(device)
+best_val_loss = float("inf")
+patience = 10
+counter = 0
+criterion=nn.BCEWithLogitsLoss(pos_weight=pos_weight)
 optimiser=torch.optim.Adam(model.parameters(),lr=0.0001)
 for steps in range(1000):
     model.train()
@@ -65,23 +73,36 @@ for steps in range(1000):
          logits=model(xb1)
          loss=criterion(logits,yb1)
          val_loss.append(loss.item())
-    model.eval()
-    all_preds = []
-    all_targets = []
+         avg_val_loss = np.mean(val_loss)
 
-    with torch.no_grad():
+    if avg_val_loss < best_val_loss:
+            best_val_loss = avg_val_loss
+            counter = 0
+            torch.save(model.state_dict(), "best_model.pt")
+    else:
+          counter += 1
+
+    if counter >= patience:
+           print("Early stopping triggered")
+           break
+
+model.eval()
+all_preds = []
+all_targets = []
+with torch.no_grad():
      for xb, yb in test_loader:
         xb, yb = xb.to(device), yb.to(device)
         logits = model(xb)
         probs = torch.sigmoid(logits)  
-        all_preds.extend(probs.cpu().numpy())
+        all_preds.extend(probs.cpu().numpy().flatten())
         all_targets.extend(yb.cpu().numpy())
-    preds_binary = [1 if p > 0.5 else 0 for p in all_preds]
-    acc = accuracy_score(all_targets, preds_binary)
+preds_binary = [1 if p > 0.5 else 0 for p in all_preds]
+acc = accuracy_score(all_targets, preds_binary)
 prec = precision_score(all_targets, preds_binary)
 rec = recall_score(all_targets, preds_binary)
 roc_auc = roc_auc_score(all_targets, all_preds)
-print(f"Test Metrics -> Acc: {acc:.4f} | Prec: {prec:.4f} | Rec: {rec:.4f} | ROC-AUC: {roc_auc:.4f}")
+pr_auc = average_precision_score(all_targets, all_preds)
+print(f"Test Metrics -> Acc: {acc:.4f} | Prec: {prec:.4f} | Rec: {rec:.4f} | ROC-AUC: {roc_auc:.4f}| PR-AUC:{pr_auc:.4f}")
 torch.save(model.state_dict(), "best_model.pt")
 
 
