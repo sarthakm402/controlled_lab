@@ -73,7 +73,7 @@ for steps in range(1000):
          logits=model(xb1)
          loss=criterion(logits,yb1)
          val_loss.append(loss.item())
-         avg_val_loss = np.mean(val_loss)
+    avg_val_loss = np.mean(val_loss)
 
     if avg_val_loss < best_val_loss:
             best_val_loss = avg_val_loss
