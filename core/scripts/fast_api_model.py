@@ -1,39 +1,14 @@
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, UploadFile
 from pydantic import BaseModel
 import sys
 import pandas as pd
-sys.path.append("/home/sarthak/Desktop/work/ml_code/controlled_lab/core/scripts")
-from model_api import MLP
 import torch
 import time
 import logging
-"""now we making a small scale robuts fast api tasks to do:
-Clean Model Loading (Startup Hook)--done
-Enforce Input Rules Strictly
-Reject if both JSON and CSV provided.--done
+from typing import Optional, List
 
-Reject if neither provided.--done
-
-Validate feature count for JSON AND CSV.--done
-
-Reject empty batches.--done
-
-Reject batch size > 1000 (hard cap for now).--done
-Add Model Version + Configurable Thresholds--done
-Structured Response Format--done
-Fraud Logging (TXT for Now)--done
-Latency Tracking--done
-Failure Wrapper--done
-
-Wrap inference logic in try/except.--done
-
-If any runtime error happens:
-Cap Future Scale Properly--done
-
-If batch size > MAX_BATCH_SIZE:--done
-
-Reject it"""
-
+sys.path.append("/home/sarthak/Desktop/work/ml_code/controlled_lab/core/scripts")
+from model_api import MLP
 logging.basicConfig(
     filename="fraud_logs.txt",
     level=logging.INFO,
@@ -41,106 +16,179 @@ logging.basicConfig(
 )
 
 app = FastAPI()
-input_size = 3
-batch_size = 1000
+
+INPUT_SIZE = 3
+MAX_BATCH_SIZE = 1000
+MODEL_VERSION = "v1.1"
+THRESHOLD = 0.5
+
 model = None
-model_version = "v1.1"
-threshold = 0.5
+def build_response(
+    status: str,
+    message: str,
+    batch_size: int,
+    latency_seconds: float,
+    data: Optional[dict] = None
+):
+    return {
+        "status": status, 
+        "message": message,
+        "model_version": MODEL_VERSION,
+        "batch_size": batch_size,
+        "latency_ms": round(latency_seconds * 1000, 3),
+        "data": data
+    }
 
 @app.on_event("startup")
 def load_model():
     global model
-    model = MLP(input_size)
-    model.load_state_dict(state_dict=torch.load("beset_model.pt"))
+    model = MLP(INPUT_SIZE)
+    model.load_state_dict(torch.load("beset_model.pt"))
     model.eval()
-    logging.info(f"Model loaded | version={model_version}")
+    logging.info(f"Model loaded | version={MODEL_VERSION}")
 
-class struct_output(BaseModel):
-    features: list[list[float]]
+class StructuredInput(BaseModel):
+    features: List[List[float]]
+
 
 @app.post("/predict")
-def predict(req: struct_output = None, file: UploadFile = None):
+def predict(req: Optional[StructuredInput] = None, file: Optional[UploadFile] = None):
     request_start_time = time.perf_counter()
+
     try:
+      
         if req and file:
-            logging.warning("Both JSON and CSV provided")
-            return {"error": "Provide either JSON or CSV, not both."}
+            latency = time.perf_counter() - request_start_time
+            return build_response(
+                "error",
+                "Provide either JSON or CSV, not both.",
+                0,
+                latency
+            )
 
         if not req and not file:
-            logging.warning("No input provided")
-            return {"error": "No input provided."}
+            latency = time.perf_counter() - request_start_time
+            return build_response(
+                "error",
+                "No input provided.",
+                0,
+                latency
+            )
 
         if req:
-            if len(req.features) == 0:
-                logging.warning("Empty JSON batch")
-                return {"error": "Batch cannot be empty."}
+            batch_len = len(req.features)
 
-            if len(req.features) > batch_size:
-                logging.warning("JSON batch size exceeded")
-                return {"error": "Batch size exceeds limit."}
+            if batch_len == 0:
+                latency = time.perf_counter() - request_start_time
+                return build_response(
+                    "error",
+                    "Batch cannot be empty.",
+                    0,
+                    latency
+                )
+
+            if batch_len > MAX_BATCH_SIZE:
+                latency = time.perf_counter() - request_start_time
+                return build_response(
+                    "error",
+                    "Batch size exceeds limit.",
+                    batch_len,
+                    latency
+                )
 
             for row in req.features:
-                if len(row) != input_size:
-                    logging.warning("Invalid JSON feature size")
-                    return {"error": f"Each row must have {input_size} features."}
+                if len(row) != INPUT_SIZE:
+                    latency = time.perf_counter() - request_start_time
+                    return build_response(
+                        "error",
+                        f"Each row must have {INPUT_SIZE} features.",
+                        batch_len,
+                        latency
+                    )
 
             x_data = torch.tensor(req.features, dtype=torch.float32)
-            batch_len = len(req.features)
 
         else:
             df = pd.read_csv(file.file)
-
-            if df.shape[0] == 0:
-                logging.warning("Empty CSV batch")
-                return {"error": "Batch cannot be empty."}
-
-            if df.shape[0] > batch_size:
-                logging.warning("CSV batch size exceeded")
-                return {"error": "Batch size exceeds limit."}
-
-            if df.shape[1] != input_size:
-                logging.warning("Invalid CSV feature size")
-                return {"error": f"CSV must have {input_size} features."}
-
-            x_data = torch.tensor(df.values, dtype=torch.float32)
             batch_len = df.shape[0]
 
-        inference_start_time = time.perf_counter()
+            if batch_len == 0:
+                latency = time.perf_counter() - request_start_time
+                return build_response(
+                    "error",
+                    "Batch cannot be empty.",
+                    0,
+                    latency
+                )
+
+            if batch_len > MAX_BATCH_SIZE:
+                latency = time.perf_counter() - request_start_time
+                return build_response(
+                    "error",
+                    "Batch size exceeds limit.",
+                    batch_len,
+                    latency
+                )
+
+            if df.shape[1] != INPUT_SIZE:
+                latency = time.perf_counter() - request_start_time
+                return build_response(
+                    "error",
+                    f"CSV must have {INPUT_SIZE} features.",
+                    batch_len,
+                    latency
+                )
+
+            x_data = torch.tensor(df.values, dtype=torch.float32)
+
+        inference_start = time.perf_counter()
+
         with torch.no_grad():
             logits = model(x_data)
-            prob = torch.sigmoid(logits).view(-1).tolist()
-            preds = [1 if i >= threshold else 0 for i in prob]
-            predictions = [
-                {"probability": p, "label": l}
-                for p, l in zip(prob, preds)
-            ]
+            probabilities = torch.sigmoid(logits).view(-1).tolist()
+            labels = [1 if p >= THRESHOLD else 0 for p in probabilities]
 
-        inference_latency = time.perf_counter() - inference_start_time
+        inference_latency = time.perf_counter() - inference_start
         request_latency = time.perf_counter() - request_start_time
-        fraud_count = sum(preds)
+
+        predictions = [
+            {"probability": p, "label": l}
+            for p, l in zip(probabilities, labels)
+        ]
+
+        fraud_count = sum(labels)
 
         logging.info(
-            f"Prediction complete | version={model_version} | batch={batch_len} | "
-            f"fraud_count={fraud_count} | inference_latency={inference_latency:.6f}s | "
+            f"Prediction complete | version={MODEL_VERSION} | "
+            f"batch={batch_len} | fraud_count={fraud_count} | "
+            f"inference_latency={inference_latency:.6f}s | "
             f"request_latency={request_latency:.6f}s"
         )
 
-        return {
-            "model_version": model_version,
-            "predictions": predictions,
-            "threshold": threshold,
-            "request_latency": request_latency,
-            "inference_latency": inference_latency
-        }
+        return build_response(
+            "success",
+            "Inference completed successfully.",
+            batch_len,
+            request_latency,
+            data={
+                "predictions": predictions,
+                "threshold": THRESHOLD,
+                "fraud_count": fraud_count,
+                "inference_latency_ms": round(inference_latency * 1000, 3)
+            }
+        )
 
     except Exception as e:
         request_latency = time.perf_counter() - request_start_time
+
         logging.error(
-            f"Inference failed | version={model_version} | error={str(e)} | "
-            f"request_latency={request_latency:.6f}s"
+            f"Inference failed | version={MODEL_VERSION} | "
+            f"error={str(e)} | request_latency={request_latency:.6f}s"
         )
-        return {
-            "error": "Inference failed",
-            "details": str(e),
-            "request_latency": request_latency
-        }
+
+        return build_response(
+            "error",
+            "Inference failed due to internal error.",
+            0,
+            request_latency
+        )
