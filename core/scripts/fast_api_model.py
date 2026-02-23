@@ -14,7 +14,21 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
-
+"""now we making a small scale robuts fast api tasks to do: 
+Clean Model Loading (Startup Hook)--done 
+Enforce Input Rules Strictly Reject if both JSON and CSV provided.--done 
+Reject if neither provided.--done 
+Validate feature count for JSON AND CSV.--done 
+Reject empty batches.--done 
+Reject batch size > 1000 (hard cap for now).--done 
+Add Model Version + Configurable Thresholds--done 
+Structured Response Format--done 
+Fraud Logging (TXT for Now)--done 
+Latency Tracking--done 
+Failure Wrapper--done 
+Wrap inference logic in try/except.--done 
+If any runtime error happens: Cap Future Scale Properly--done 
+If batch size > MAX_BATCH_SIZE:--done Reject it"""
 app = FastAPI()
 
 INPUT_SIZE = 3
@@ -188,7 +202,8 @@ def predict(req: Optional[StructuredInput] = None, file: Optional[UploadFile] = 
 
         return build_response(
             "error",
-            "Inference failed due to internal error.",
+            "Inference failed due git add ." \
+            "to internal error.",
             0,
             request_latency
         )
