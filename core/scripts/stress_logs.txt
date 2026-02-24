@@ -1,0 +1,14 @@
+2026-02-24 09:07:47,261 - ERROR - Form data requires "python-multipart" to be installed. 
+You can install "python-multipart" with: 
+
+pip install python-multipart
+
+2026-02-24 09:08:09,610 - ERROR - Form data requires "python-multipart" to be installed. It seems you installed "multipart" instead. 
+You can remove "multipart" with: 
+
+pip uninstall multipart
+
+And then install "python-multipart" with: 
+
+pip install python-multipart
+
