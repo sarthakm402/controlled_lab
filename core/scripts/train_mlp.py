@@ -2,7 +2,7 @@
 # import torch.nn as nn
 # torch.manual_seed(0)
 # x=torch.rand(200,2)
-# y=(x[:,0]+x[:,1]>0).float().unsqueeze(1)
+# y=(x[:,0]+x[:,1]>0).float().unsqueeze(1) 
 # lr=0.1
 # model=nn.Sequential(
 #     nn.Linear(2,5),
