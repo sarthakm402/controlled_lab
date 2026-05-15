@@ -9,7 +9,7 @@
 #     nn.ReLU(),
 #     nn.Linear(5,1)
 # )
-# criterion = nn.BCEWithLogitsLoss()
+# criterion = nn.BCEWithLogitsLoss() 
 # optimizer = torch.optim.SGD(model.parameters(), lr=lr)
 # for steps in range(1000):
 #     logits=model(x)
